@@ -1,0 +1,129 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+
+tmake_settings(
+  project_name = "3dtext"
+)
+
+def remove_src(str, list):
+  for src in list[::-1]:
+    if str in src:
+      list.remove(src)
+
+tmake_global_cxx(
+ # xcode_properties = {"INSTALL_PATH": "/usr/local/lib"}
+   build_vars = {'CMAKE_SYSTEM_VERSION':'21', 'CMAKE_ANDROID_NDK_TOOLCHAIN_VERSION':'clang'},
+)
+
+# INSTALL_PATH
+
+flags = ''
+cxx_flags = ' -std=c++11 '
+defs = ['STBI_NO_THREAD_LOCALS']
+h_dirs = []
+link_libs = []
+lib_dirs = []
+src_list = []
+
+link_libs.append('freetype')
+link_libs.append('bz2')
+link_libs.append('z')
+lib_dirs.append(tmake_path('3rdParty/freetype'))
+lib_dirs.append('/usr/lib')
+
+folders = ['3rdParty', 'Render_with_OpenGL', 'Text3D']
+defs.append('ROOT_PATH="' + os.getcwd().replace('\\', "/") + '"')
+
+for folder in folders:
+  src_list += tmake_glob(tmake_path(folder), '*.h', True)
+  src_list += tmake_glob(tmake_path(folder), '*.c', True)
+  src_list += tmake_glob(tmake_path(folder), '*.cpp', True)
+  src_list += tmake_glob(tmake_path(folder), '*.hpp', True)
+  src_list += tmake_glob(tmake_path(folder), '*.cc', True)
+  if TMAKE_TARGET in ['mac', 'ios']:
+    src_list += tmake_glob(tmake_path(folder), '*.m', True)
+    src_list += tmake_glob(tmake_path(folder), '*.mm', True)
+
+  h_dirs.append(tmake_path(folder))
+
+h_dirs.append(tmake_path('3rdParty'))
+h_dirs.append(tmake_path('3rdParty/include'))
+h_dirs.append(tmake_path('3rdParty/freetype/include'))
+h_dirs.append(tmake_path('Render_with_OpenGL/include'))
+h_dirs.append(tmake_path('Text3D/include'))
+
+os_plist = ''
+
+if TMAKE_TARGET == "mac":
+  defs.append('_GLFW_COCOA')
+  defs.append('APP_GLFW')
+  flags += ' -framework Cocoa '
+  flags += ' -framework IOKit '
+  flags += ' -framework CoreFoundation '
+  flags += ' -framework OpenGL '
+  flags += ' -framework CoreAudio '
+  flags += ' -framework AudioToolbox '
+  flags += ' -framework JavaScriptCore '
+  os_plist = './info.plist.in'
+  remove_src("win32_", src_list)
+  remove_src("wgl_context", src_list)
+elif TMAKE_TARGET == "ios":
+  os_plist = './info.plist.ios.in'
+  cxx_flags += ' -stdlib=libc++ '
+  cxx_flags += ' -Wno-unused-command-line-argument '
+  flags += ' -framework Foundation '
+  flags += ' -framework UIKit -framework CoreAudio -framework AudioToolbox '
+  flags += ' -framework OpenGLES -framework GLKit -framework AVFoundation -framework CoreVideo -framework CoreMedia -framework OpenAL '
+  flags += ' -framework JavaScriptCore '
+elif TMAKE_TARGET == 'android':
+  flags += " -Wl,--no-wchar-size-warning  "  
+
+if TMAKE_TARGET == "windows":
+  defs.append('_GLFW_WIN32')
+  defs.append('APP_GLFW')
+  flags += ' -lgdi32 '
+  cxx_flags += ' /Yl- /utf-8 '
+
+defs.append('ROOT_PATH="' + os.getcwd().replace('\\', "/") + '"')
+
+print src_list
+
+mac_deps = []
+if os.path.exists('/usr/local/lib/libassimp.dylib') and TMAKE_TARGET == 'mac':
+  mac_deps.append('assimp')
+  defs.append('HAS_ASSIMP_IMPL')
+
+# 指定编译二进制
+tmake_cxx_app(
+  name = '3dtext',
+  srcs = src_list,
+  include_dirs = h_dirs,
+  linker_flags = flags,
+  cxx_flags = cxx_flags,
+  # c_flags = cxx_flags,
+  defines = defs,
+  deps = [],
+  windows_deps = [
+    'gdi32.lib',
+    'Opengl32',
+  ],
+  android_deps = [
+      'GLESv2', 'GLESv3', 'z', 'jnigraphics', 'dl', 'EGL', 'android', 'log'
+  ],
+  mac_deps = mac_deps,
+  plist = tmake_path(os_plist),
+  app_icon = 'AppIcon',
+  launch_image = 'LaunchImage',
+  link_libs = link_libs,
+  lib_dirs = lib_dirs
+)
+
+assetName = ['assets', 'Images.xcassets']
+app_files = []
+
+if TMAKE_TARGET != "windows":
+  tmake_cxx_resources(
+    name = 'box',
+    files = app_files,
+    bundles = assetName
+  )
